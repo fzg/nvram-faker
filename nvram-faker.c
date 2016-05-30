@@ -14,6 +14,8 @@ static int kv_count=0;
 static int key_value_pair_len=DEFAULT_KV_PAIR_LEN;
 static char **key_value_pairs=NULL;
 static int is_value_ro(const char *key, char *v);
+inline static int find_key(const char *key);
+
 
 #define DIE(x) {DEBUG_PRINTF(x);return 0;}
 #define SIE(x) {DEBUG_PRINTF(x);return;}
@@ -52,7 +54,6 @@ void initialize_ini(void) {
 
     if ((err = ini_parse(INI_FILE_PATH, ini_handler, (void *)&key_value_pairs)) < 0) {
         LOG_PRINTF("ret from ini_parse was %d\nINI parse failed. Terminating\n", err);
-//        free(key_value_pairs);
         exit(1);
     }
 }
@@ -73,12 +74,12 @@ void end(void) {
 */
 
 char *nvram_get_ex2(const char *key) {
-  LOG_PRINTF("get_ex2\n");
+  LOG_PRINTF("get_ex2\t");
   return nvram_get(key);
 }
 
 char **nvram_get_ex(const char *key, char **val, size_t len) {
-  LOG_PRINTF("get_ex\n");
+  LOG_PRINTF("get_ex\t");
   static char *ptr;
   ptr = nvram_get(key);
   *val = ptr;
@@ -86,13 +87,14 @@ char **nvram_get_ex(const char *key, char **val, size_t len) {
 }
 
 char *nvram_get_scanf(const char *key, const char *fmt, void **dest) {
-  LOG_PRINTF("get_scanf ( %s %s )\n", key, fmt);
+  LOG_PRINTF("get_scanf ( %s %s )\t", key, fmt);
+  static char *ptr = NULL;
   char *it = nvram_get(key);
   if (!it) {
     LOG_PRINTF("non existing %s!\n", key);
     it = "0";
   }
-  static char *ptr;
+  if (ptr) { free(ptr); ptr = NULL; }
   ptr = malloc(strlen(it));
   if (ptr) {
      sscanf(ptr, fmt, it);
@@ -104,19 +106,16 @@ char *nvram_get_scanf(const char *key, const char *fmt, void **dest) {
 // TODO fix because apparently libnvram doesnt strdup for simple get (but for get_ex_2)
 // aweful memory leak but don't care for now
 char *nvram_get(const char *key) {
-    int i, found = 0;
-    char *value, *ret = NULL;
-    for (i = 0; i < kv_count; i+=2) {
-      if (!strcmp(key,key_value_pairs[i])) {
-        LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
-        found = !(!(key_value_pairs[i+1]));
-        value = key_value_pairs[i+1];
-        break;
-        }
-    }
-    if (!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-    else ret=strdup(value);
-    return ret;
+  LOG_PRINTF("get\t");
+  int i, found = 0;
+  char *value, *ret = NULL;
+  if ((i = find_key(key)) > -1) {
+    LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
+    found = !(!(key_value_pairs[i+1]));
+    return found? strdup(key_value_pairs[i+1]) : NULL;
+  }
+  LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+  return NULL;
 }
 
 
@@ -130,27 +129,24 @@ char *nvram_get(const char *key) {
 */
 
 int nvram_safe_set(const char *key, char *val) {
-  LOG_PRINTF("safe_set\n");
+  LOG_PRINTF("safe_set\t");
   if (!val || (val && !key)) return -1;
   else return nvram_set(key, val);
 }
 
 int nvram_set(const char *key, char *new_value) {
-  LOG_PRINTF("set\n");
-  int i, found = 0;
-  char *value;
+  LOG_PRINTF("set\t");
+  int i;
+
   if (is_value_ro(key, new_value)) return -1;
-  for (i=0; i < kv_count; i+=2) {
-    if (!strcmp(key,key_value_pairs[i])) {
-      LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF,key,key_value_pairs[i+1], new_value);
-      found = 1;
-      value=key_value_pairs[i+1];
-      break;
-    }
+
+  if ((i = find_key(key)) > -1) {
+    LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF,key,key_value_pairs[i+1], new_value);
+    memcpy(key_value_pairs[i+1], new_value, 32); // FIXME why 32?
+    return 0;
   }
-  if (!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-  else memcpy(value, new_value, 32); // FIXME why 32?
-    return 0; // payton DUT returns 1 if nvram full, -1 if error, 0 if good
+  LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+  return -1; // payton DUT returns 1 if nvram full, -1 if error, 0 if good
 }
 
 /*
@@ -161,6 +157,14 @@ int nvram_set(const char *key, char *new_value) {
  #    # mm#mm  "mmm#"  "mmm"   #
 
 */
+
+
+
+inline static int find_key(const char *key) {
+  int i;
+  for (i = 0; i < kv_count; i+=2) if (!strcmp(key,key_value_pairs[i])) return i;
+  return -1;
+}
 
 static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT overwriting sh*t
   static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", "login_time", 0};
@@ -174,37 +178,29 @@ static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT 
 }
 
 int nvram_invmatch(const char *key, const char *my_value) {
-  LOG_PRINTF("invmatch\n");
+  LOG_PRINTF("invmatch\t");
   return (!nvram_match(key, my_value)); // TODO: check if invmatch works like this
 }
 
 int nvram_match(const char *key, const char *my_value) {
-  int i, found = 0;
-  char *value;
-  LOG_PRINTF("match\n");
-  for (i=0; i < kv_count; i+=2) {
-    if(!strcmp(key,key_value_pairs[i])) {
-      LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
-      found = 1;
-      value=key_value_pairs[i+1];
-      break;
-    }
+  LOG_PRINTF("match\t");
+  int i;
+
+  if ((i = find_key(key)) > -1) {
+    LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
+    return (!strcmp(key_value_pairs[i+1], my_value));
+  } else {
+    LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+    return 0;
   }
-  if (!found) {
-       LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-       return 0;
-  } else return (!strcmp(value, my_value));
 }
 
 void nvram_unset(const char *key) {
-  LOG_PRINTF("unset\n");
+  LOG_PRINTF("unset\t");
   int i;
-  for (i = 0; i < kv_count; i += 2) {
-    if (!strcmp(key, key_value_pairs[i])) {
-      LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
-      key_value_pairs[i+1] = 0;
-      break;
-    }
+  if ((i = find_key(key)) > -1) {
+    LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
+    key_value_pairs[i+1] = 0;
   }
 }
 
