@@ -46,7 +46,7 @@ else
 	warn "Not setting NM: can't lcoate arm-linux-gnueabi-nm."
 fi
 
-
+make clean
 make $TARGET || exit $?
 
 

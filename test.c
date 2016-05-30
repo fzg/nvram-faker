@@ -1,3 +1,5 @@
+#include <unistd.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include "nvram-faker.h"
 
@@ -34,10 +36,11 @@ int main() {
 
   puts("get_scanf");
 
-  nvram_get_scanf("model_name", "%s", &mdl);
+  nvram_get_scanf("model_name", "%s", (void**)&mdl);
   if (!mdl) puts("string is null"); else printf("%s\n", mdl);
 
-
+  nvram_get_scanf("model_mode", "%d", (void**)&mdl);
+  if (!mdl) puts("mode is null!!!");
 
 
 // get after

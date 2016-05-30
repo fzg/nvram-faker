@@ -10,7 +10,7 @@ CFLAGS+= -DINI_USE_STACK=0
 export CFLAGS
 EXE=nvram_faker_exe
 EXE_OBJ=nvram_faker_main.o
-OBJS=nvram-faker.o 
+OBJS=nvram-faker.o
 INI_OBJ=ini.o
 INI_PATH=$(TRUNK)/contrib/inih
 INCLUDES=-I$(INI_PATH)
@@ -19,12 +19,9 @@ LIB=libnvram-faker.so
 
 all:$(LIB)
 
-
-
 exe: export CFLAGS+=-DNVRAM_EXE -DDEBUG
 exe: export CFLAGS+=-DINI_FILE_PATH=\"./nvram.ini\"
 exe: $(EXE)
-
 
 
 $(INI_OBJ):
@@ -38,7 +35,7 @@ $(LIB): $(OBJS) $(INI_OBJ)
 	$(CC) -shared -o $@ $^ -Wl,-nostdlib
 
 nvram_faker_exe:$(EXE_OBJ) $(OBJS) $(INI_OBJ)
-	$(CC) -Wall -o $@ $^ 
+	$(CC) -Wall -o $@ $^
 
 clean:
 	-rm *.o
@@ -47,3 +44,7 @@ clean:
 	make -C $(INI_PATH) $@
 
 
+re : clean all
+
+test : re
+	./test.sh

@@ -13,212 +13,198 @@
 static int kv_count=0;
 static int key_value_pair_len=DEFAULT_KV_PAIR_LEN;
 static char **key_value_pairs=NULL;
+static int is_value_ro(const char *key, char *v);
 
-static int ini_handler(void *user, const char *section, const char *name,const char *value)
-{
+#define DIE(x) {DEBUG_PRINTF(x);return 0;}
+#define SIE(x) {DEBUG_PRINTF(x);return;}
 
-    int old_kv_len;
-    char **kv;
-    char **new_kv;
-    int i;
-    
-    if(NULL == user || NULL == section || NULL == name || NULL == value)
-    {
-        DEBUG_PRINTF("bad parameter to ini_handler\n");
-        return 0;
-    }
+
+static int ini_handler(void *user, const char *section, const char *name,const char *value) {
+    int i, old_kv_len;
+    char **kv, **new_kv;
+
+    if (!user || !section || !name || !value) DIE("bad parameter to ini_handler\n");
     kv = *((char ***)user);
-    if(NULL == kv)
-    {
-        LOG_PRINTF("kv is NULL\n");
-        return 0;
-    }
-    
-    DEBUG_PRINTF("kv_count: %d, key_value_pair_len: %d\n", kv_count,key_value_pair_len);
-    if(kv_count >= key_value_pair_len)
-    {
-        old_kv_len=key_value_pair_len;
-        key_value_pair_len=(key_value_pair_len * 2);
-        new_kv=(char **)malloc(key_value_pair_len * sizeof(char **));
-        if(NULL == kv)
-        {
-            LOG_PRINTF("Failed to reallocate key value array.\n");
-            return 0;
-        }
-        for(i=0;i<old_kv_len;i++)
-        {
-            new_kv[i]=kv[i];
-        }
+    if (!kv) DIE("kv is NULL\n");
+    DEBUG_PRINTF("kv_count: %d, key_value_pair_len: %d\n", kv_count, key_value_pair_len);
+    if (kv_count >= key_value_pair_len) {
+        old_kv_len = key_value_pair_len;
+        key_value_pair_len = (2*key_value_pair_len);
+        new_kv = (char **)malloc(key_value_pair_len * sizeof(kv));
+        if (!kv) DIE("Failed to reallocate key value array.\n");
+        for (i = 0; i < old_kv_len; ++i) new_kv[i] = kv[i];
         free(*(char ***)user);
-        kv=new_kv;
-        *(char ***)user=kv;
+        kv = new_kv;
+        *(char ***)user = kv;
     }
     DEBUG_PRINTF("Got %s:%s\n",name,value);
-    kv[kv_count++]=strdup(name);
-    kv[kv_count++]=strdup(value);
-    
+    kv[kv_count++] = strdup(name);
+    kv[kv_count++] = strdup(value);
     return 1;
 }
 
-void initialize_ini(void)
-{
-    int ret;
+void initialize_ini(void) {
+    int err;
     DEBUG_PRINTF("Initializing.\n");
-    if (NULL == key_value_pairs)
-    {
-        key_value_pairs=malloc(key_value_pair_len * sizeof(char **));
-    }
-    if(NULL == key_value_pairs)
-    {
-        LOG_PRINTF("Failed to allocate memory for key value array. Terminating.\n");
+    if (!key_value_pairs)
+      if ((key_value_pairs = malloc(key_value_pair_len * sizeof(key_value_pairs))) == NULL)
+        SIE("Failed to allocate memory for key value array. Terminating.\n");
+
+    if ((err = ini_parse(INI_FILE_PATH, ini_handler, (void *)&key_value_pairs)) < 0) {
+        LOG_PRINTF("ret from ini_parse was %d\nINI parse failed. Terminating\n", err);
+//        free(key_value_pairs);
         exit(1);
     }
-    
-    ret = ini_parse(INI_FILE_PATH,ini_handler,(void *)&key_value_pairs);
-    if (0 != ret)
-    {
-        LOG_PRINTF("ret from ini_parse was: %d\n",ret);
-        LOG_PRINTF("INI parse failed. Terminating\n");
-        free(key_value_pairs);
-        key_value_pairs=NULL;
-        exit(1);
-    }else
-    {
-        DEBUG_PRINTF("ret from ini_parse was: %d\n",ret);
-    }
-    
-    return;
-    
 }
 
-void end(void)
-{
-    int i;
-    for (i=0;i<kv_count;i++)
-    {
-        free(key_value_pairs[i]);
-    }
+void end(void) {
+    for (int i = 0; i < kv_count; ++i) free(key_value_pairs[i]);
     free(key_value_pairs);
-    key_value_pairs=NULL;
-    
-    return;
+    key_value_pairs = NULL;
 }
 
-char *nvram_get_ex(const char *key, char **val, size_t len)
-{
- char *ptr = nvram_get(key);
-// memset(*val, 0, len);
-// memcpy(*val, ptr, len);
- *val = ptr;
- return &ptr;
+/*
+   mmm  mmmmmmmmmmmmmmmmmmmm mmmmmm mmmmm   mmmm
+ m"   " #        #      #    #      #   "# #"   "
+ #   mm #mmmmm   #      #    #mmmmm #mmmm" "#mmm
+ #    # #        #      #    #      #   "m     "#
+  "mmm" #mmmmm   #      #    #mmmmm #    " "mmm#"
+
+*/
+
+char *nvram_get_ex2(const char *key) {
+  LOG_PRINTF("get_ex2\n");
+  return nvram_get(key);
 }
 
+char **nvram_get_ex(const char *key, char **val, size_t len) {
+  LOG_PRINTF("get_ex\n");
+  static char *ptr;
+  ptr = nvram_get(key);
+  *val = ptr;
+  return &ptr;
+}
 
+char *nvram_get_scanf(const char *key, const char *fmt, void **dest) {
+  LOG_PRINTF("get_scanf ( %s %s )\n", key, fmt);
+  char *it = nvram_get(key);
+  if (!it) {
+    LOG_PRINTF("non existing %s!\n", key);
+    it = "0";
+  }
+  static char *ptr;
+  ptr = malloc(strlen(it));
+  if (ptr) {
+     sscanf(ptr, fmt, it);
+     dest = (void**)&ptr;
+  }
+  return ptr;
+}
+
+// TODO fix because apparently libnvram doesnt strdup for simple get (but for get_ex_2)
 // aweful memory leak but don't care for now
-char *nvram_get(const char *key)
-{
-    int i;
-    int found=0;
-    char *value;
-    char *ret;
-    for(i=0;i<kv_count;i+=2)
-    {
-        if(strcmp(key,key_value_pairs[i]) == 0)
-        {
-            LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
-            found = (key_value_pairs[i+1]);
-            value=key_value_pairs[i+1];
-            break;
+char *nvram_get(const char *key) {
+    int i, found = 0;
+    char *value, *ret = NULL;
+    for (i = 0; i < kv_count; i+=2) {
+      if (!strcmp(key,key_value_pairs[i])) {
+        LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
+        found = !(!(key_value_pairs[i+1]));
+        value = key_value_pairs[i+1];
+        break;
         }
     }
-
-    ret = NULL;
-    if(!found)
-    {
-            LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-    }else
-    {
-
-            ret=strdup(value);
-    }
+    if (!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+    else ret=strdup(value);
     return ret;
 }
 
 
-int nvram_match(const char *key, const char *my_value) {
-    int i, found = 0;
-    char *value;
-    for(i=0; i < kv_count; i+=2) {
-        if(!strcmp(key,key_value_pairs[i])) {
-            LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
-            found = 1;
-            value=key_value_pairs[i+1];
-            break;
-        }
+/*
+  mmmm  mmmmmmmmmmmmmmmmmmmm mmmmmm mmmmm   mmmm
+ #"   " #        #      #    #      #   "# #"   "
+ "#mmm  #mmmmm   #      #    #mmmmm #mmmm" "#mmm
+     "# #        #      #    #      #   "m     "#
+ "mmm#" #mmmmm   #      #    #mmmmm #    " "mmm#"
+
+*/
+
+int nvram_safe_set(const char *key, char *val) {
+  LOG_PRINTF("safe_set\n");
+  if (!val || (val && !key)) return -1;
+  else return nvram_set(key, val);
+}
+
+int nvram_set(const char *key, char *new_value) {
+  LOG_PRINTF("set\n");
+  int i, found = 0;
+  char *value;
+  if (is_value_ro(key, new_value)) return -1;
+  for (i=0; i < kv_count; i+=2) {
+    if (!strcmp(key,key_value_pairs[i])) {
+      LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF,key,key_value_pairs[i+1], new_value);
+      found = 1;
+      value=key_value_pairs[i+1];
+      break;
     }
-    if(!found) {
+  }
+  if (!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+  else memcpy(value, new_value, 32); // FIXME why 32?
+    return 0; // payton DUT returns 1 if nvram full, -1 if error, 0 if good
+}
+
+/*
+ m    m mmmmm   mmmm    mmm
+ ##  ##   #    #"   " m"   "
+ # ## #   #    "#mmm  #
+ # "" #   #        "# #
+ #    # mm#mm  "mmm#"  "mmm"   #
+
+*/
+
+static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT overwriting sh*t
+  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", "login_time", 0};
+  for (char **ptr = ro; *ptr && **ptr; ptr++) {
+    if (!strcmp(*ptr, key)) {
+      LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"RED_OFF,key, v);
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int nvram_invmatch(const char *key, const char *my_value) {
+  LOG_PRINTF("invmatch\n");
+  return (!nvram_match(key, my_value)); // TODO: check if invmatch works like this
+}
+
+int nvram_match(const char *key, const char *my_value) {
+  int i, found = 0;
+  char *value;
+  LOG_PRINTF("match\n");
+  for (i=0; i < kv_count; i+=2) {
+    if(!strcmp(key,key_value_pairs[i])) {
+      LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
+      found = 1;
+      value=key_value_pairs[i+1];
+      break;
+    }
+  }
+  if (!found) {
        LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
        return 0;
-    }
-    else {
-      return (!strcmp(value, my_value));
-    }
-
-}
-
-char is_value_ro(const char *key, char *v) {
-    static char* ro[] = {"http_client_ip" ,"http_from", 0};
-
-    for (char **ptr = ro; *ptr && **ptr; ptr++) {
-     if (!strcmp(*ptr, key)) {
-         LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"RED_OFF,key, v);
-         return 1;
-      }
-    }
-}
-
-void nvram_set(const char *key, char *new_value) {
-    int i, found = 0;
-    char *value;
-    if (is_value_ro(key, new_value)) return;
-    for(i=0; i < kv_count; i+=2) {
-        if(!strcmp(key,key_value_pairs[i])) {
-            LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF,key,key_value_pairs[i+1], new_value);
-            found = 1;
-            value=key_value_pairs[i+1];
-            break;
-        }
-    }
-    if(!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-    else {
-     memcpy(value, new_value, 32);
-    }
+  } else return (!strcmp(value, my_value));
 }
 
 void nvram_unset(const char *key) {
-    int i, found = 0;
-    char *value;
-    for(i=0; i < kv_count; i+=2) {
-        if(!strcmp(key,key_value_pairs[i])) {
-            LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
-            found = 1;
-            value=key_value_pairs[i+1];
-	    key_value_pairs[i+1] = 0;
-
-            break;
-        }
+  LOG_PRINTF("unset\n");
+  int i;
+  for (i = 0; i < kv_count; i += 2) {
+    if (!strcmp(key, key_value_pairs[i])) {
+      LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
+      key_value_pairs[i+1] = 0;
+      break;
     }
-    if(!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
-    else value = 0;
-}
-
-
-char *nvram_get_scanf(const char *key, const char *fmt, void **dest) {
-  char *it = nvram_get(key);
-  char *ptr = malloc(strlen(it));
-  if (ptr) {
-     sscanf(ptr, fmt, it);
-     dest = ptr;
   }
 }
 
