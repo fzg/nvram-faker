@@ -104,6 +104,17 @@ void end(void)
     return;
 }
 
+char *nvram_get_ex(const char *key, char **val, size_t len)
+{
+ char *ptr = nvram_get(key);
+// memset(*val, 0, len);
+// memcpy(*val, ptr, len);
+ *val = ptr;
+ return &ptr;
+}
+
+
+// aweful memory leak but don't care for now
 char *nvram_get(const char *key)
 {
     int i;
@@ -115,7 +126,7 @@ char *nvram_get(const char *key)
         if(strcmp(key,key_value_pairs[i]) == 0)
         {
             LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
-            found = 1;
+            found = (key_value_pairs[i+1]);
             value=key_value_pairs[i+1];
             break;
         }
@@ -133,4 +144,81 @@ char *nvram_get(const char *key)
     return ret;
 }
 
+
+int nvram_match(const char *key, const char *my_value) {
+    int i, found = 0;
+    char *value;
+    for(i=0; i < kv_count; i+=2) {
+        if(!strcmp(key,key_value_pairs[i])) {
+            LOG_PRINTF("%s=%s\n",key,key_value_pairs[i+1]);
+            found = 1;
+            value=key_value_pairs[i+1];
+            break;
+        }
+    }
+    if(!found) {
+       LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+       return 0;
+    }
+    else {
+      return (!strcmp(value, my_value));
+    }
+
+}
+
+char is_value_ro(const char *key, char *v) {
+    static char* ro[] = {"http_client_ip" ,"http_from", 0};
+
+    for (char **ptr = ro; *ptr && **ptr; ptr++) {
+     if (!strcmp(*ptr, key)) {
+         LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"RED_OFF,key, v);
+         return 1;
+      }
+    }
+}
+
+void nvram_set(const char *key, char *new_value) {
+    int i, found = 0;
+    char *value;
+    if (is_value_ro(key, new_value)) return;
+    for(i=0; i < kv_count; i+=2) {
+        if(!strcmp(key,key_value_pairs[i])) {
+            LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF,key,key_value_pairs[i+1], new_value);
+            found = 1;
+            value=key_value_pairs[i+1];
+            break;
+        }
+    }
+    if(!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+    else {
+     memcpy(value, new_value, 32);
+    }
+}
+
+void nvram_unset(const char *key) {
+    int i, found = 0;
+    char *value;
+    for(i=0; i < kv_count; i+=2) {
+        if(!strcmp(key,key_value_pairs[i])) {
+            LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
+            found = 1;
+            value=key_value_pairs[i+1];
+	    key_value_pairs[i+1] = 0;
+
+            break;
+        }
+    }
+    if(!found) LOG_PRINTF( RED_ON"%s=Unknown\n"RED_OFF,key);
+    else value = 0;
+}
+
+
+char *nvram_get_scanf(const char *key, const char *fmt, void **dest) {
+  char *it = nvram_get(key);
+  char *ptr = malloc(strlen(it));
+  if (ptr) {
+     sscanf(ptr, fmt, it);
+     dest = ptr;
+  }
+}
 
