@@ -8,8 +8,14 @@
 #include "nvram-faker-internal.h"
 #include "ini.h"
 
+//colors are black red green yellow blue magenta cyan white
+
 #define RED_ON "\033[22;31m"
-#define RED_OFF "\033[22;00m"
+#define COL_OFF "\033[22;00m"
+
+#define GRN_ON "\033[22;32m"
+#define ORA_ON  "\033[22;33m"
+
 #define DEFAULT_KV_PAIR_LEN 1024
 
 static int kv_count=0;
@@ -74,7 +80,7 @@ char *nvram_get(const char *key) {
     found = !(!(key_value_pairs[i+1]));
     return found? strdup(key_value_pairs[i+1]) : NULL;
   }
-  LOG_PRINTF( RED_ON"%s := Unknown\n"RED_OFF,key);
+  LOG_PRINTF( RED_ON"%s := Unknown\n"COL_OFF,key);
   return NULL;
 }
 
@@ -101,11 +107,11 @@ int nvram_set(const char *key, char *val) {
   if (is_value_ro(key, val)) return -1;
 
   if ((i = find_key(key)) > -1) {
-    LOG_PRINTF(RED_ON"%s:%s -> %s\n"RED_OFF, key, key_value_pairs[i+1], val);
+    LOG_PRINTF( ORA_ON"%s:%s -> %s\n"COL_OFF , key, key_value_pairs[i+1], val);
     memcpy(key_value_pairs[i+1], val, 32); // FIXME why 32?
     return 0;
   }
-  LOG_PRINTF( RED_ON"%s: Unknown key\n"RED_OFF, key);
+  LOG_PRINTF( RED_ON"%s: Unknown key\n"COL_OFF, key);
   return -1; // payton DUT returns 1 if nvram full, -1 if error, 0 if good
 }
 
@@ -154,10 +160,10 @@ inline static int find_key(const char *key) {
 }
 
 static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT overwriting sh*t
-  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", "login_time", 0};
+  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", 0, "login_time", 0};
   for (char **ptr = ro; *ptr && **ptr; ptr++) {
     if (!strcmp(*ptr, key)) {
-      LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"RED_OFF,key, v);
+      LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"COL_OFF,key, v);
       return 1;
     }
   }
@@ -166,19 +172,25 @@ static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT 
 
 int nvram_invmatch(const char *key, const char *value) {
   LOG_PRINTF("invmatch\t");
-  return (!nvram_match(key, value)); // TODO: check if invmatch works like this
+  int i = nvram_match(key, value);
+  if (i < 0) return -1;
+  LOG_PRINTF("   -> %d\n", !i);
+  return (!i); // TODO: check if invmatch works like this
 }
 
 int nvram_match(const char *key, const char *value) {
   LOG_PRINTF("match(%s,%s)\t", key, value);
-  int i;
+  int i, res;
+  char *col;
 
   if ((i = find_key(key)) > -1) {
-    LOG_PRINTF("%s == %s\n",key,key_value_pairs[i+1]);
-    return (!strcmp(key_value_pairs[i+1], value));
+    res = !strcmp(key_value_pairs[i+1], value);
+    col = res? GRN_ON : ORA_ON;
+    LOG_PRINTF("%s%s: Is %s, Wants %s\n"COL_OFF,col,key,key_value_pairs[i+1], value);
+    return res;
   } else {
-    LOG_PRINTF( RED_ON"%s == Unknown\n"RED_OFF,key);
-    return 0;
+    LOG_PRINTF( RED_ON"%s == Unknown\n"COL_OFF,key);
+    return -1;
   }
 }
 
@@ -186,7 +198,7 @@ void nvram_unset(const char *key) {
   LOG_PRINTF("unset(%s)\t", key);
   int i;
   if ((i = find_key(key)) > -1) {
-    LOG_PRINTF(RED_ON"%s UNSET!!\n"RED_OFF,key);
+    LOG_PRINTF(RED_ON"%s UNSET!!\n"COL_OFF,key);
     key_value_pairs[i+1] = 0;
   }
 }
@@ -194,5 +206,9 @@ void nvram_unset(const char *key) {
 int nvram_commit(int a) {
   LOG_PRINTF("nvram_commit(%d)\t", a);
   return 1;
+}
+
+void ct_syslog(int x, int y, char *str) {
+  LOG_PRINTF("[ct_syslog]\t %s\n", str);
 }
 

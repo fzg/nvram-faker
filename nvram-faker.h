@@ -25,5 +25,7 @@ int nvram_invmatch(const char *a, const char *b);
 
 //OTHER
 int nvram_commit(int ); //todo
+void ct_syslog(int, int, char *);
+
 
 #endif /* __NVRAM_FAKER_H__ */
