@@ -1,4 +1,4 @@
-nvram-faker
+nvram-faker-ex
 ===========
 
 When using emulation to run an application found in an embedded Linux firmware, such as a wireless router's web server, one of the main problems encountered is the application attempting to source NVRAM for configuration parameters.  A common library, `libnvram.so`, is often used in embedded Linux to abstract access to NVRAM.  This provides `nvram_get()` and `nvram_set()` functions to get and set configuration parameters.  The calls to `nvram_get()` will fail, since the emulated environment has no NVRAM.  Without configuration parameters the target application will likely fail to run.
@@ -21,7 +21,10 @@ Put `libnvram-faker.so` somewhere in your firmware's extracted filesystem.  Edit
 
 Every nvram query and the answer returned will be printed to standard output.  If the answer is not found, NULL is returned by `nvram_get` and the query is printed to the console in red, so it will easy to notice.
 
-The library currently does not support calls to `nvram_set()`.
+EXTENDING
+-------------------------
+
+Feel free to add routines in nvram-faker.[h,c]. Be sure to have a look at it to check what is currently implemented.
 
 
 ACKNOWLEDGMENTS
