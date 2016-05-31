@@ -10,6 +10,9 @@
 
 //colors are black red green yellow blue magenta cyan white
 
+#define HPR_IMP "\033[7m"
+#define HPR_NRM "\033[27m"
+
 #define RED_ON "\033[22;31m"
 #define COL_OFF "\033[22;00m"
 
@@ -160,7 +163,7 @@ inline static int find_key(const char *key) {
 }
 
 static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT overwriting sh*t
-  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", 0, "login_time", 0};
+  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", "login_time", 0};
   for (char **ptr = ro; *ptr && **ptr; ptr++) {
     if (!strcmp(*ptr, key)) {
       LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"COL_OFF,key, v);
@@ -208,7 +211,9 @@ int nvram_commit(int a) {
   return 1;
 }
 
+
+
 void ct_syslog(int x, int y, char *str) {
-  LOG_PRINTF("[ct_syslog]\t %s\n", str);
+  LOG_PRINTF(HPR_IMP GRN_ON"[ct_syslog]\t %s\n"COL_OFF HPR_NRM, str);
 }
 
