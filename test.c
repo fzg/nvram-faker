@@ -36,12 +36,14 @@ int main() {
 
   puts("get_scanf");
 
-  nvram_get_scanf("model_name", "%s", (void**)&mdl);
+  nvram_get_scanf("model_name", "%s", mdl);
+
   if (!mdl) puts("string is null"); else printf("%s\n", mdl);
 
-  nvram_get_scanf("model_mode", "%d", (void**)&mdl);
-  if (!mdl) puts("mode is null!!!");
-
+  int i;
+  nvram_get_scanf("auth_st", "%d", &i);
+  if (!mdl) puts("auth_st is null!!!");
+  else printf("auth_st == %d\n", i);
 
 // get after
 
