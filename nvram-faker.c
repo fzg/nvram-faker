@@ -83,6 +83,7 @@ char *nvram_get(const char *key) {
     found = !(!(key_value_pairs[i+1]));
     return found? strdup(key_value_pairs[i+1]) : NULL;
   }
+  log_unknown(key);
   LOG_PRINTF( RED_ON"%s := Unknown\n"COL_OFF,key);
   return NULL;
 }
@@ -111,9 +112,15 @@ int nvram_set(const char *key, char *val) {
 
   if ((i = find_key(key)) > -1) {
     LOG_PRINTF( ORA_ON"%s:%s -> %s\n"COL_OFF , key, key_value_pairs[i+1], val);
-    memcpy(key_value_pairs[i+1], val, 32); // FIXME why 32?
+    char *old = key_value_pairs[i+1];
+    if (old) {
+      free(old); old = 0;
+    }
+    key_value_pairs[i+1] = malloc(strlen(val)*sizeof(*val));
+    memcpy(key_value_pairs[i+1], val, strlen(val)); // FIXME why 32?
     return 0;
   }
+  log_unknown(key);
   LOG_PRINTF( RED_ON"%s: Unknown key\n"COL_OFF, key);
   return -1; // payton DUT returns 1 if nvram full, -1 if error, 0 if good
 }
@@ -163,7 +170,7 @@ inline static int find_key(const char *key) {
 }
 
 static int is_value_ro(const char *key, char *v) { // Dirty hack to prevent DUT overwriting sh*t
-  static char* ro[] = {"http_client_ip" ,"http_from", "access_flag", "login_time", 0};
+  static char* ro[] = {"http_client_ip" ,"http_from", 0, "access_flag", "login_time", 0};
   for (char **ptr = ro; *ptr && **ptr; ptr++) {
     if (!strcmp(*ptr, key)) {
       LOG_PRINTF( RED_ON"Asked to modify RO value: %s -> %s\n"COL_OFF,key, v);
@@ -192,6 +199,7 @@ int nvram_match(const char *key, const char *value) {
     LOG_PRINTF("%s%s: Is %s, Wants %s\n"COL_OFF,col,key,key_value_pairs[i+1], value);
     return res;
   } else {
+    log_unknown(key);
     LOG_PRINTF( RED_ON"%s == Unknown\n"COL_OFF,key);
     return -1;
   }
@@ -203,7 +211,7 @@ void nvram_unset(const char *key) {
   if ((i = find_key(key)) > -1) {
     LOG_PRINTF(RED_ON"%s UNSET!!\n"COL_OFF,key);
     key_value_pairs[i+1] = 0;
-  }
+  } else log_unknown(key);
 }
 
 int nvram_commit(int a) {

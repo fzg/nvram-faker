@@ -1,3 +1,16 @@
+#include <unistd.h>
+#include <fcntl.h>
+
+static void log_unknown(const char*key) {
+   static char sep[] = {'\n', 0};
+   int fd = open("/tmp/nvramfaker_unknowns.txt", O_RDWR|O_APPEND|O_CREAT);
+   if (fd > 0) {
+    write(fd, key, strlen(key));
+    write(fd, sep, 2);
+    close(fd);
+   }
+}
+
 static int ini_handler(void *user, const char *section, const char *name,const char *value) {
     int i, old_kv_len;
     char **kv, **new_kv;
