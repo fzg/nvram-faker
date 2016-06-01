@@ -4,7 +4,7 @@
 
 // GET
 char *nvram_get(const char *key);
-char **nvram_get_ex(const char *key, char **val, size_t len);
+char *nvram_get_ex(const char *key, char *val, size_t len);
 char *nvram_get_ex2(const char *key); // like get but with strdup
 int  nvram_get_scanf(const char *key, const char *fmt, ...);
 char *nvram_safe_get();  //?!
@@ -25,7 +25,9 @@ int nvram_invmatch(const char *a, const char *b);
 
 //OTHER
 int nvram_commit(int ); //todo
-void ct_syslog(int, int, char *);
+void ct_debuglog(int x, int y, char *fmt, ...);
+void ct_syslog(int x, int y, char *fmt, ...);
+
 
 
 #endif /* __NVRAM_FAKER_H__ */

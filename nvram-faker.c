@@ -48,12 +48,17 @@ char *nvram_get_ex2(const char *key) {
   return nvram_get(key);
 }
 
-char **nvram_get_ex(const char *key, char **val, size_t len) {
+
+// we must write into val and not overwrite it
+char *nvram_get_ex(const char *key, char *val, size_t len) {
   LOG_PRINTF("get_ex\t");
   static char *ptr;
-  ptr = nvram_get(key);
-  *val = ptr;
-  return &ptr;
+  memset(val, 0, len);
+  if (ptr = nvram_get(key)) {
+    strncpy(val, ptr, len);
+    free(ptr);
+  }
+  return val;
 }
 
 int nvram_get_scanf(const char *key, const char *fmt, ...) {
@@ -117,6 +122,7 @@ int nvram_set(const char *key, char *val) {
       free(old); old = 0;
     }
     key_value_pairs[i+1] = malloc(strlen(val)*sizeof(*val));
+    printf("Copying %d bytes (%s) to %s\n", strlen(val), val, key);
     memcpy(key_value_pairs[i+1], val, strlen(val)); // FIXME why 32?
     return 0;
   }
@@ -220,8 +226,23 @@ int nvram_commit(int a) {
 }
 
 
+void ct_debuglog(int x, int y, char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
 
-void ct_syslog(int x, int y, char *str) {
-  LOG_PRINTF(HPR_IMP GRN_ON"[ct_syslog]\t %s\n"COL_OFF HPR_NRM, str);
+  LOG_PRINTF(HPR_IMP GRN_ON"[ct_dbglog]\t");
+  vfprintf(stdout, fmt, args);
+  LOG_PRINTF("\n"COL_OFF HPR_NRM);
+  va_end(args);
+}
+
+void ct_syslog(int x, int y, char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+
+  LOG_PRINTF(HPR_IMP GRN_ON"[ct_syslog]\t");
+  vfprintf(stdout, fmt, args);
+  LOG_PRINTF("\n"COL_OFF HPR_NRM);
+  va_end(args);
 }
 
